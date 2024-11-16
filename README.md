@@ -1,7 +1,7 @@
-# A-Hybrid-GAN-CNN-Model-For-Coronary-Artery-Disease-Detection-CAD-
+# A CNN Model With Temporal Attention For Coronary Artery Disease Detection (CAD)
 
 ## Overview
-This repository contains a deep learning model for predicting Coronary Artery Disease (CAD) using cardiac MRI images. The model utilizes a Convolutional Neural Network (CNN) with a Temporal Attention mechanism to analyze medical imaging data and predict the likelihood of CAD.
+This repository contains a deep-learning model for predicting Coronary Artery Disease (CAD) using cardiac MRI images. The model utilizes a Convolutional Neural Network (CNN) with a Temporal Attention mechanism to analyze medical imaging data and predict the likelihood of CAD.
 
 ## Features
 1. Utilizes the Sunnybrook Cardiac MRI dataset
