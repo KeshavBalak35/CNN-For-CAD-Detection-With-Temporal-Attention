@@ -1,3 +1,5 @@
+!pip install pydicom
+!pip install kagglehub
 import os
 import numpy as np
 import torch
@@ -42,10 +44,11 @@ labels = [1] * (len(processed_image_files) // 2) + [0] * (len(processed_image_fi
 
 # Custom Dataset
 class ProcessedImageDataset(Dataset):
-    def __init__(self, images, labels, transform=None):
+    def __init__(self, images, labels, transform=None, num_frames=10):
         self.images = images
         self.labels = labels
         self.transform = transform
+        self.num_frames = num_frames
 
     def __len__(self):
         return len(self.images)
@@ -54,14 +57,17 @@ class ProcessedImageDataset(Dataset):
         image = self.images[index]
         label = self.labels[index]
         
-        if self.transform:
-            image = self.transform(image)
+        # Simulate a sequence of frames by repeating the image
+        sequence = [image] * self.num_frames
         
-        return image, torch.tensor(label, dtype=torch.float32)
+        if self.transform:
+            sequence = [self.transform(Image.fromarray(frame)) for frame in sequence]
+        
+        sequence = torch.stack(sequence)
+        return sequence, torch.tensor(label, dtype=torch.float32)
 
 # Data augmentation and normalization
 train_transform = transforms.Compose([
-    transforms.ToPILImage(),
     transforms.RandomHorizontalFlip(),
     transforms.RandomRotation(10),
     transforms.ToTensor(),
@@ -69,7 +75,6 @@ train_transform = transforms.Compose([
 ])
 
 test_transform = transforms.Compose([
-    transforms.ToPILImage(),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
@@ -80,20 +85,39 @@ train_images, test_images, train_labels, test_labels = train_test_split(
 )
 
 # Create datasets
-train_dataset = ProcessedImageDataset(train_images, train_labels, transform=train_transform)
-test_dataset = ProcessedImageDataset(test_images, test_labels, transform=test_transform)
+train_dataset = ProcessedImageDataset(train_images, train_labels, transform=train_transform, num_frames=10)
+test_dataset = ProcessedImageDataset(test_images, test_labels, transform=test_transform, num_frames=10)
 
 # Create data loaders
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
 
-# Define the model (using a pre-trained ResNet18)
+# Define the temporal attention mechanism
+class TemporalAttention(nn.Module):
+    def __init__(self, feature_dim):
+        super(TemporalAttention, self).__init__()
+        self.attention = nn.Sequential(
+            nn.Linear(feature_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, x):
+        weights = self.attention(x).squeeze(-1)
+        weights = torch.softmax(weights, dim=1)
+        return (x * weights.unsqueeze(-1)).sum(dim=1)
+
+# Define the model with temporal attention
 class CADDetector(nn.Module):
-    def __init__(self):
+    def __init__(self, num_frames=10):
         super(CADDetector, self).__init__()
         self.resnet = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=True)
         num_ftrs = self.resnet.fc.in_features
-        self.resnet.fc = nn.Sequential(
+        self.resnet.fc = nn.Identity()
+        
+        self.temporal_attention = TemporalAttention(num_ftrs)
+        
+        self.fc = nn.Sequential(
             nn.Linear(num_ftrs, 256),
             nn.ReLU(),
             nn.Dropout(0.5),
@@ -102,11 +126,17 @@ class CADDetector(nn.Module):
         )
 
     def forward(self, x):
-        return self.resnet(x).squeeze()
+        b, t, c, h, w = x.size()
+        x = x.view(b*t, c, h, w)
+        features = self.resnet(x)
+        features = features.view(b, t, -1)
+        
+        attended_features = self.temporal_attention(features)
+        return self.fc(attended_features).squeeze()
 
 # Initialize model, loss function, and optimizer
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = CADDetector().to(device)
+model = CADDetector(num_frames=10).to(device)
 criterion = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5)
