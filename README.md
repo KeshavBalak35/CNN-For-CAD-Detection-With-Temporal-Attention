@@ -21,9 +21,4 @@ scikit-learn==0.24.2
 
 
 ## Results and Analysis
-From our last training cycle, our model reached an Accuracy of 97.87%, Precision of 100%, Recall of 95.65%, and an Area Under the Curve (AUC) of 99.82%. The High AUC means that the model can distinguish between patients with/without CAD, while the high recall, accuracy, and precision shows the model can accurately predict if a patient has CAD. 
-
-
-
-
-
+From our last training cycle, our model reached an Accuracy of 97.87%, Precision of 100%, Recall of 95.65%, and an Area Under the Curve (AUC) of 100%. The perfect AUC means that the model can distinguish between patients with/without CAD, while the high recall, accuracy, and precision shows the model can accurately predict if a patient has CAD. 
